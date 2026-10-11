@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
 from typing import Any, NamedTuple
 from zoneinfo import ZoneInfo
 
@@ -74,6 +74,39 @@ def prochain_changement(plages: list[Plage], now: datetime) -> datetime | None:
         if _minute_creuse(minute, plages) != _minute_creuse(precedente, plages):
             return candidat
     return None
+
+
+def plages_creuses(
+    plages: list[Plage], debut: datetime, fin: datetime
+) -> list[tuple[datetime, datetime]]:
+    """Périodes d'heures creuses qui chevauchent [debut, fin), en heure de Paris.
+
+    Les plages jointives (ex. 22h-2h puis 2h-6h) sont fusionnées en une seule période.
+    """
+    premier = debut.astimezone(TIMEZONE).date() - timedelta(days=1)
+    dernier = fin.astimezone(TIMEZONE).date() + timedelta(days=1)
+    periodes: list[tuple[datetime, datetime]] = []
+    jour = premier
+    while jour <= dernier:
+        minuit = datetime.combine(jour, time(), TIMEZONE)
+        for p_debut, p_fin in plages:
+            if p_debut == p_fin:
+                continue
+            if p_fin < p_debut:
+                p_fin += _MINUTES_PAR_JOUR  # passe minuit
+            periodes.append(
+                (minuit + timedelta(minutes=p_debut), minuit + timedelta(minutes=p_fin))
+            )
+        jour += timedelta(days=1)
+
+    fusionnees: list[tuple[datetime, datetime]] = []
+    for p_debut, p_fin in sorted(periodes):
+        if fusionnees and p_debut <= fusionnees[-1][1]:
+            ancien = fusionnees[-1]
+            fusionnees[-1] = (ancien[0], max(ancien[1], p_fin))
+        else:
+            fusionnees.append((p_debut, p_fin))
+    return [(d, f) for d, f in fusionnees if d < fin and f > debut]
 
 
 def prix_actuel(offre: dict[str, Any], now: datetime) -> PrixActuel:

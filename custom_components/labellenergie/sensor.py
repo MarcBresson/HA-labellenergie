@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -13,16 +13,18 @@ from homeassistant.components.sensor import (
     SensorEntityDescription,
 )
 from homeassistant.const import EntityCategory, UnitOfEnergy
-from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
-from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
-from homeassistant.helpers.event import async_track_point_in_time
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
-from .const import DOMAIN, MANUFACTURER
 from .coordinator import LabellenergieConfigEntry, LabellenergieCoordinator
-from .pricing import parse_plages_hc, prix_actuel, prochain_changement
+from .entity import (
+    LabellenergieBasculeEntity,
+    LabellenergieEntity,
+    ajouter_entites_par_pdl,
+)
+from .pricing import prix_actuel
 
 UNITE_EUR = "EUR"
 UNITE_EUR_KWH = f"{UNITE_EUR}/{UnitOfEnergy.KILO_WATT_HOUR}"
@@ -134,72 +136,19 @@ async def async_setup_entry(
     entry: LabellenergieConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    """Crée les entités, y compris pour les PDL qui apparaîtront plus tard."""
-    coordinator = entry.runtime_data
-    connus: set[str] = set()
+    """Crée les capteurs de chaque point de livraison."""
 
-    @callback
-    def _ajouter_nouveaux_pdl() -> None:
-        entites: list[LabellenergieEntity] = []
-        for numero in coordinator.data:
-            if numero in connus:
-                continue
-            connus.add(numero)
-            entites.extend(
-                LabellenergieSensor(coordinator, numero, description)
-                for description in SENSORS
-            )
-            entites.extend(
-                LabellenergiePdlSensor(coordinator, numero, description)
-                for description in SENSORS_PDL
-            )
-            entites.append(LabellenergiePrixActuel(coordinator, numero, PRIX_ACTUEL))
-        if entites:
-            async_add_entities(entites)
+    def _creer(coordinator: LabellenergieCoordinator, numero: str) -> list[Entity]:
+        return [
+            *(LabellenergieSensor(coordinator, numero, d) for d in SENSORS),
+            *(LabellenergiePdlSensor(coordinator, numero, d) for d in SENSORS_PDL),
+            LabellenergiePrixActuel(coordinator, numero, PRIX_ACTUEL),
+        ]
 
-    _ajouter_nouveaux_pdl()
-    entry.async_on_unload(coordinator.async_add_listener(_ajouter_nouveaux_pdl))
+    ajouter_entites_par_pdl(entry, async_add_entities, _creer)
 
 
-class LabellenergieEntity(CoordinatorEntity[LabellenergieCoordinator], SensorEntity):
-    """Entité rattachée à un appareil = un point de livraison."""
-
-    _attr_has_entity_name = True
-
-    def __init__(
-        self,
-        coordinator: LabellenergieCoordinator,
-        numero: str,
-        description: SensorEntityDescription,
-    ) -> None:
-        super().__init__(coordinator)
-        self.entity_description = description
-        self._numero = numero
-        pdl = coordinator.data[numero]
-        self._attr_unique_id = f"{numero}_{description.key}"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, numero)},
-            name=pdl["nom"],
-            manufacturer=MANUFACTURER,
-            model=pdl.get("type_compteur"),
-        )
-
-    @property
-    def _pdl(self) -> dict[str, Any] | None:
-        return self.coordinator.data.get(self._numero)
-
-    @property
-    def _offre(self) -> dict[str, Any]:
-        pdl = self._pdl
-        return pdl["offre"] if pdl else {}
-
-    @property
-    def available(self) -> bool:
-        # Valeur null côté API (ex. prix HC sur une offre base) : entité indisponible.
-        return super().available and self._pdl is not None and self.native_value is not None
-
-
-class LabellenergieSensor(LabellenergieEntity):
+class LabellenergieSensor(LabellenergieEntity, SensorEntity):
     """Valeur lue dans `offreCourante`."""
 
     entity_description: LabellenergieSensorDescription
@@ -207,6 +156,10 @@ class LabellenergieSensor(LabellenergieEntity):
     @property
     def native_value(self) -> Any:
         return self.entity_description.value_fn(self._offre)
+
+    @property
+    def _a_une_valeur(self) -> bool:
+        return self.native_value is not None
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
@@ -223,10 +176,8 @@ class LabellenergiePdlSensor(LabellenergieSensor):
         return self.entity_description.value_fn(pdl) if pdl else None
 
 
-class LabellenergiePrixActuel(LabellenergieEntity):
+class LabellenergiePrixActuel(LabellenergieBasculeEntity, SensorEntity):
     """Prix du kWh en vigueur, recalculé uniquement aux bascules HC/HP."""
-
-    _unsub_bascule: CALLBACK_TYPE | None = None
 
     @property
     def native_value(self) -> float | None:
@@ -235,43 +186,12 @@ class LabellenergiePrixActuel(LabellenergieEntity):
         return prix_actuel(self._offre, dt_util.now()).prix
 
     @property
+    def _a_une_valeur(self) -> bool:
+        return self.native_value is not None
+
+    @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
         if self._pdl is None:
             return None
         courant = prix_actuel(self._offre, dt_util.now())
         return {"heure_creuse": courant.heure_creuse, "option": courant.option}
-
-    async def async_added_to_hass(self) -> None:
-        await super().async_added_to_hass()
-        self.async_on_remove(self._annuler_bascule)
-        self._planifier_bascule()
-
-    @callback
-    def _handle_coordinator_update(self) -> None:
-        # Plages ou offre modifiées : la prochaine bascule a pu changer.
-        self._planifier_bascule()
-        super()._handle_coordinator_update()
-
-    @callback
-    def _annuler_bascule(self) -> None:
-        if self._unsub_bascule is not None:
-            self._unsub_bascule()
-            self._unsub_bascule = None
-
-    @callback
-    def _planifier_bascule(self) -> None:
-        self._annuler_bascule()
-        offre = self._offre
-        if offre.get("base") is not None:
-            return  # prix unique : aucune bascule
-        quand = prochain_changement(parse_plages_hc(offre.get("plagesHc")), dt_util.now())
-        if quand is not None:
-            self._unsub_bascule = async_track_point_in_time(
-                self.hass, self._bascule, quand
-            )
-
-    @callback
-    def _bascule(self, _maintenant: datetime) -> None:
-        self._unsub_bascule = None
-        self._planifier_bascule()
-        self.async_write_ha_state()

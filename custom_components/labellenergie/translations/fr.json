@@ -59,6 +59,16 @@
       "prix_actuel": {
         "name": "Prix actuel du kWh"
       }
+    },
+    "binary_sensor": {
+      "heure_creuse": {
+        "name": "Heure creuse en cours"
+      }
+    },
+    "calendar": {
+      "calendrier_hc": {
+        "name": "Calendrier des heures creuses"
+      }
     }
   }
 }

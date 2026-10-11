@@ -6,6 +6,7 @@ from labellenergie.pricing import (
     TIMEZONE,
     is_heure_creuse,
     parse_plages_hc,
+    plages_creuses,
     prix_actuel,
     prochain_changement,
 )
@@ -101,3 +102,32 @@ def test_prochain_changement_est_dans_le_futur():
     plages = parse_plages_hc(PLAGES)
     now = paris(7, 3)
     assert 0 < (prochain_changement(plages, now) - now).total_seconds() <= timedelta(days=1).total_seconds()
+
+
+def test_plages_creuses_sur_une_journee():
+    plages = parse_plages_hc(PLAGES)
+    assert plages_creuses(plages, paris(0), paris(0, jour=16)) == [
+        (paris(1, 4), paris(7, 4)),
+        (paris(14, 34), paris(16, 34)),
+    ]
+
+
+def test_plages_creuses_chevauchement_et_minuit():
+    plages = parse_plages_hc(["22h - 6h"])
+    # À 3h : la période commencée la veille est incluse
+    assert plages_creuses(plages, paris(3), paris(4)) == [(paris(22, jour=14), paris(6))]
+    # Fenêtre d'un jour : deux périodes qui se touchent la fenêtre
+    assert plages_creuses(plages, paris(8), paris(8, jour=16)) == [
+        (paris(22), paris(6, jour=16)),
+    ]
+
+
+def test_plages_creuses_fusionne_les_plages_jointives():
+    plages = parse_plages_hc(["22h - 2h", "2h - 6h"])
+    assert plages_creuses(plages, paris(12), paris(12, jour=16)) == [
+        (paris(22), paris(6, jour=16)),
+    ]
+
+
+def test_plages_creuses_vide():
+    assert plages_creuses([], paris(0), paris(0, jour=20)) == []

@@ -59,6 +59,16 @@
       "adresse": {
         "name": "Address"
       }
+    },
+    "binary_sensor": {
+      "heure_creuse": {
+        "name": "Heure creuse en cours"
+      }
+    },
+    "calendar": {
+      "calendrier_hc": {
+        "name": "Calendrier des heures creuses"
+      }
     }
   }
 }

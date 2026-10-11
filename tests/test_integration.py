@@ -82,8 +82,8 @@ async def _setup(hass, get_pdls, pdls):
     return entry
 
 
-def _state(hass, numero, key):
-    entity_id = er.async_get(hass).async_get_entity_id("sensor", DOMAIN, f"{numero}_{key}")
+def _state(hass, numero, key, domaine="sensor"):
+    entity_id = er.async_get(hass).async_get_entity_id(domaine, DOMAIN, f"{numero}_{key}")
     assert entity_id, key
     return hass.states.get(entity_id)
 
@@ -121,7 +121,9 @@ async def test_entites_en_diagnostic_sauf_prix_actuel(hass, get_pdls):
         if e.platform == DOMAIN
     }
     assert categories.pop("prix_actuel") is None
-    assert len(categories) == 9
+    assert categories.pop("heure_creuse") is None
+    assert categories.pop("calendrier_hc") is None
+    assert len(categories) == 9  # le capteur binaire et le calendrier n'en font pas partie
     assert set(categories.values()) == {er.EntityCategory.DIAGNOSTIC}
 
 
@@ -145,6 +147,57 @@ async def test_prix_actuel_bascule_aux_heures_de_changement(hass, freezer, get_p
         assert etat.attributes["heure_creuse"] is creuse
 
 
+async def test_capteur_binaire_heure_creuse(hass, freezer, get_pdls):
+    freezer.move_to("2026-10-15T00:30:00+02:00")
+    await _setup(hass, get_pdls, deepcopy(PDLS))
+    assert _state(hass, NUMERO, "heure_creuse", "binary_sensor").state == "off"
+
+    for instant, attendu in [
+        ("2026-10-15T01:04:00+02:00", "on"),
+        ("2026-10-15T07:04:00+02:00", "off"),
+        ("2026-10-15T14:34:00+02:00", "on"),
+    ]:
+        freezer.move_to(instant)
+        async_fire_time_changed(hass, dt_util.utcnow())
+        await hass.async_block_till_done()
+        assert _state(hass, NUMERO, "heure_creuse", "binary_sensor").state == attendu
+
+
+async def test_calendrier_heures_creuses(hass, freezer, get_pdls):
+    freezer.move_to("2026-10-15T00:30:00+02:00")
+    await _setup(hass, get_pdls, deepcopy(PDLS))
+    cal = _state(hass, NUMERO, "calendrier_hc", "calendar")
+    assert cal.state == "off"
+    assert cal.attributes["message"] == "Heures creuses"
+    # L'attribut est exprimé dans le fuseau configuré de HA, d'où la comparaison d'instants.
+    debut = dt_util.parse_datetime(cal.attributes["start_time"]).replace(
+        tzinfo=dt_util.get_default_time_zone()
+    )
+    assert debut == dt_util.parse_datetime("2026-10-15T01:04:00+02:00")
+
+    freezer.move_to("2026-10-15T02:00:00+02:00")
+    async_fire_time_changed(hass, dt_util.utcnow())
+    await hass.async_block_till_done()
+    assert _state(hass, NUMERO, "calendrier_hc", "calendar").state == "on"
+
+    reponse = await hass.services.async_call(
+        "calendar",
+        "get_events",
+        {
+            "entity_id": _state(hass, NUMERO, "calendrier_hc", "calendar").entity_id,
+            "start_date_time": "2026-10-15T00:00:00+02:00",
+            "end_date_time": "2026-10-16T00:00:00+02:00",
+        },
+        blocking=True,
+        return_response=True,
+    )
+    evenements = next(iter(reponse.values()))["events"]
+    assert [(e["start"], e["end"]) for e in evenements] == [
+        ("2026-10-15T01:04:00+02:00", "2026-10-15T07:04:00+02:00"),
+        ("2026-10-15T14:34:00+02:00", "2026-10-15T16:34:00+02:00"),
+    ]
+
+
 async def test_offre_base_sans_bascule(hass, freezer, get_pdls):
     freezer.move_to("2026-10-15T00:30:00+02:00")
     await _setup(hass, get_pdls, {"999": deepcopy(PDL_BASE)})
@@ -152,6 +205,8 @@ async def test_offre_base_sans_bascule(hass, freezer, get_pdls):
     assert float(etat.state) == 0.2
     assert etat.attributes["option"] == "base"
     assert _state(hass, "999", "prix_hc").state == "unavailable"
+    assert _state(hass, "999", "heure_creuse", "binary_sensor").state == "unavailable"
+    assert _state(hass, "999", "calendrier_hc", "calendar").state == "unavailable"
 
 
 async def test_nouveau_pdl_notifie_et_entites_ajoutees(hass, get_pdls):
