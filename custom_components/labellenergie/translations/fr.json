@@ -29,14 +29,36 @@
   },
   "entity": {
     "sensor": {
-      "abonnement": { "name": "Abonnement mensuel TTC" },
-      "prix_hc": { "name": "Prix du kWh heures creuses TTC" },
-      "prix_hp": { "name": "Prix du kWh heures pleines TTC" },
-      "prix_base": { "name": "Prix du kWh base TTC" },
-      "plages_hc": { "name": "Plages d'heures creuses" },
-      "puissance": { "name": "Puissance souscrite" },
-      "derniere_modification": { "name": "Dernière modification de l'offre" },
-      "prix_actuel": { "name": "Prix actuel du kWh" }
+      "abonnement": {
+        "name": "Abonnement mensuel TTC"
+      },
+      "prix_hc": {
+        "name": "Prix du kWh heures creuses TTC"
+      },
+      "prix_hp": {
+        "name": "Prix du kWh heures pleines TTC"
+      },
+      "prix_base": {
+        "name": "Prix du kWh base TTC"
+      },
+      "plages_hc": {
+        "name": "Plages d'heures creuses"
+      },
+      "puissance": {
+        "name": "Puissance souscrite"
+      },
+      "derniere_modification": {
+        "name": "Dernière modification de l'offre"
+      },
+      "numero_pdl": {
+        "name": "Numéro de point de livraison"
+      },
+      "adresse": {
+        "name": "Adresse"
+      },
+      "prix_actuel": {
+        "name": "Prix actuel du kWh"
+      }
     }
   }
 }

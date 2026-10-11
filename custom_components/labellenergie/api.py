@@ -14,6 +14,7 @@ from .const import (
     API_LISTE_PDL,
     API_LOGIN,
     BASE_URL,
+    NOM_APPAREIL,
     USER_AGENT,
 )
 
@@ -183,11 +184,13 @@ class LabellenergieClient:
             adresses = {a["id"]: a for a in infos.get("adresses") or []}
             adresse = adresses.get(pdl.get("adresseId"))
             adresse_txt = format_adresse(adresse) if adresse else ""
+            rue = (adresse or {}).get("numeroEtRue") or numero
 
             resultat[numero] = {
                 "numero": numero,
                 "pdc_contrat_id": pdc_contrat_id,
-                "nom": f"{adresse_txt} - {numero}" if adresse_txt else numero,
+                "nom": f"{NOM_APPAREIL} - {rue}",
+                "adresse": adresse_txt,
                 "type_compteur": pdl.get("typeCompteur"),
                 "offre": pdl.get("offreCourante") or {},
             }

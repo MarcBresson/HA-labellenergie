@@ -9,12 +9,12 @@ Intégration Home Assistant (installable via [HACS](https://hacs.xyz)) qui récu
 Un **appareil** est créé pour chaque point de livraison (PDL) de votre compte, nommé :
 
 ```
-{complément} {numéro et rue}, {code postal} {ville} - {numéro de PDL}
+labelleenergie - {numéro et rue}
 ```
 
-Exemple : `4 D 4 bd DE CRETEIL, 94100 SAINT-MAUR-DES-FOSSES - 22497684412005`
+Exemple : `labelleenergie - 4 bd DE CRETEIL`
 
-Chaque appareil expose les entités suivantes :
+Chaque appareil expose les entités suivantes. Toutes sont rangées dans la section **Diagnostic** de l'appareil, sauf **Prix actuel du kWh** :
 
 | Entité | Unité | Description |
 |---|---|---|
@@ -25,6 +25,8 @@ Chaque appareil expose les entités suivantes :
 | Plages d'heures creuses | texte | Ex. `1h04 - 7h04, 14h34 - 16h34` (liste dans l'attribut `plages`) |
 | Puissance souscrite | kVA | |
 | Dernière modification de l'offre | date | Date du dernier changement de tarif |
+| Numéro de point de livraison | texte | Numéro du PDL |
+| Adresse | texte | `{complément} {numéro et rue}, {code postal} {ville}` |
 | **Prix actuel du kWh** | €/kWh | Prix en vigueur à l'instant présent (voir ci-dessous) |
 
 Une entité dont la valeur n'existe pas dans votre offre (par exemple le prix heures creuses d'une offre Base) apparaît comme « indisponible » : c'est normal.

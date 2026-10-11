@@ -21,12 +21,14 @@ from custom_components.labellenergie.api import ApiError, AuthError, Labellenerg
 from custom_components.labellenergie.const import DOMAIN  # noqa: E402
 
 NUMERO = "22497684412005"
-NOM = "4 D 4 bd DE CRETEIL, 94100 SAINT-MAUR-DES-FOSSES - 22497684412005"
+NOM = "labelleenergie - 4 bd DE CRETEIL"
+ADRESSE = "4 D 4 bd DE CRETEIL, 94100 SAINT-MAUR-DES-FOSSES"
 PDLS = {
     NUMERO: {
         "numero": NUMERO,
         "pdc_contrat_id": "c1",
         "nom": NOM,
+        "adresse": ADRESSE,
         "type_compteur": "Compteur Linky",
         "offre": {
             "puissance": 6.0,
@@ -42,7 +44,8 @@ PDLS = {
 PDL_BASE = {
     "numero": "999",
     "pdc_contrat_id": "c2",
-    "nom": "Autre adresse - 999",
+    "nom": "labelleenergie - Autre rue",
+    "adresse": "Autre rue, 75000 PARIS",
     "type_compteur": "Compteur Linky",
     "offre": {
         "puissance": 9.0,
@@ -105,6 +108,21 @@ async def test_entites_et_appareil(hass, freezer, get_pdls):
     prix = _state(hass, NUMERO, "prix_actuel")
     assert float(prix.state) == 0.189
     assert prix.attributes["unit_of_measurement"] == "EUR/kWh"
+    assert _state(hass, NUMERO, "numero_pdl").state == NUMERO
+    assert _state(hass, NUMERO, "adresse").state == ADRESSE
+
+
+async def test_entites_en_diagnostic_sauf_prix_actuel(hass, get_pdls):
+    await _setup(hass, get_pdls, deepcopy(PDLS))
+    registre = er.async_get(hass)
+    categories = {
+        e.unique_id.removeprefix(f"{NUMERO}_"): e.entity_category
+        for e in registre.entities.values()
+        if e.platform == DOMAIN
+    }
+    assert categories.pop("prix_actuel") is None
+    assert len(categories) == 9
+    assert set(categories.values()) == {er.EntityCategory.DIAGNOSTIC}
 
 
 async def test_prix_actuel_bascule_aux_heures_de_changement(hass, freezer, get_pdls):
@@ -149,7 +167,7 @@ async def test_nouveau_pdl_notifie_et_entites_ajoutees(hass, get_pdls):
 
     notif.assert_called_once()
     assert notif.call_args.kwargs["notification_id"] == f"{DOMAIN}_nouveau_pdl_999"
-    assert "Autre adresse - 999" in notif.call_args.args[1]
+    assert "labelleenergie - Autre rue" in notif.call_args.args[1]
     assert _state(hass, "999", "prix_actuel") is not None
 
 

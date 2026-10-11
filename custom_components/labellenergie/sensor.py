@@ -12,7 +12,7 @@ from homeassistant.components.sensor import (
     SensorEntity,
     SensorEntityDescription,
 )
-from homeassistant.const import UnitOfEnergy
+from homeassistant.const import EntityCategory, UnitOfEnergy
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
@@ -52,6 +52,7 @@ SENSORS: tuple[LabellenergieSensorDescription, ...] = (
     LabellenergieSensorDescription(
         key="abonnement",
         translation_key="abonnement",
+        entity_category=EntityCategory.DIAGNOSTIC,
         device_class=SensorDeviceClass.MONETARY,
         native_unit_of_measurement=UNITE_EUR,
         suggested_display_precision=2,
@@ -60,6 +61,7 @@ SENSORS: tuple[LabellenergieSensorDescription, ...] = (
     LabellenergieSensorDescription(
         key="prix_hc",
         translation_key="prix_hc",
+        entity_category=EntityCategory.DIAGNOSTIC,
         native_unit_of_measurement=UNITE_EUR_KWH,
         suggested_display_precision=5,
         value_fn=lambda offre: offre.get("hc"),
@@ -67,6 +69,7 @@ SENSORS: tuple[LabellenergieSensorDescription, ...] = (
     LabellenergieSensorDescription(
         key="prix_hp",
         translation_key="prix_hp",
+        entity_category=EntityCategory.DIAGNOSTIC,
         native_unit_of_measurement=UNITE_EUR_KWH,
         suggested_display_precision=5,
         value_fn=lambda offre: offre.get("hp"),
@@ -74,6 +77,7 @@ SENSORS: tuple[LabellenergieSensorDescription, ...] = (
     LabellenergieSensorDescription(
         key="prix_base",
         translation_key="prix_base",
+        entity_category=EntityCategory.DIAGNOSTIC,
         native_unit_of_measurement=UNITE_EUR_KWH,
         suggested_display_precision=5,
         value_fn=lambda offre: offre.get("base"),
@@ -81,20 +85,39 @@ SENSORS: tuple[LabellenergieSensorDescription, ...] = (
     LabellenergieSensorDescription(
         key="plages_hc",
         translation_key="plages_hc",
+        entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=_plages,
         attrs_fn=lambda offre: {"plages": offre.get("plagesHc") or []},
     ),
     LabellenergieSensorDescription(
         key="puissance",
         translation_key="puissance",
+        entity_category=EntityCategory.DIAGNOSTIC,
         native_unit_of_measurement="kVA",
         value_fn=lambda offre: offre.get("puissance"),
     ),
     LabellenergieSensorDescription(
         key="derniere_modification",
         translation_key="derniere_modification",
+        entity_category=EntityCategory.DIAGNOSTIC,
         device_class=SensorDeviceClass.DATE,
         value_fn=lambda offre: _date(offre.get("lastChange")),
+    ),
+)
+
+# Identité du point de livraison (lue dans le PDL, pas dans l'offre).
+SENSORS_PDL: tuple[LabellenergieSensorDescription, ...] = (
+    LabellenergieSensorDescription(
+        key="numero_pdl",
+        translation_key="numero_pdl",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda pdl: pdl.get("numero"),
+    ),
+    LabellenergieSensorDescription(
+        key="adresse",
+        translation_key="adresse",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda pdl: pdl.get("adresse") or None,
     ),
 )
 
@@ -125,6 +148,10 @@ async def async_setup_entry(
             entites.extend(
                 LabellenergieSensor(coordinator, numero, description)
                 for description in SENSORS
+            )
+            entites.extend(
+                LabellenergiePdlSensor(coordinator, numero, description)
+                for description in SENSORS_PDL
             )
             entites.append(LabellenergiePrixActuel(coordinator, numero, PRIX_ACTUEL))
         if entites:
@@ -185,6 +212,15 @@ class LabellenergieSensor(LabellenergieEntity):
     def extra_state_attributes(self) -> dict[str, Any] | None:
         attrs_fn = self.entity_description.attrs_fn
         return attrs_fn(self._offre) if attrs_fn else None
+
+
+class LabellenergiePdlSensor(LabellenergieSensor):
+    """Valeur lue dans le PDL lui-même (numéro, adresse)."""
+
+    @property
+    def native_value(self) -> Any:
+        pdl = self._pdl
+        return self.entity_description.value_fn(pdl) if pdl else None
 
 
 class LabellenergiePrixActuel(LabellenergieEntity):

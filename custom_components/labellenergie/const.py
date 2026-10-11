@@ -15,3 +15,4 @@ USER_AGENT = "Mozilla/5.0 (compatible; HomeAssistant-labellenergie/0.1)"
 
 # Les tarifs changent rarement ; le prix actuel (HC/HP) est recalculé localement.
 UPDATE_INTERVAL = timedelta(hours=24)
+NOM_APPAREIL = "labelleenergie"

@@ -29,14 +29,36 @@
   },
   "entity": {
     "sensor": {
-      "abonnement": { "name": "Monthly subscription (incl. tax)" },
-      "prix_hc": { "name": "Off-peak kWh price (incl. tax)" },
-      "prix_hp": { "name": "Peak kWh price (incl. tax)" },
-      "prix_base": { "name": "Base kWh price (incl. tax)" },
-      "plages_hc": { "name": "Off-peak hours" },
-      "puissance": { "name": "Subscribed power" },
-      "derniere_modification": { "name": "Offer last changed" },
-      "prix_actuel": { "name": "Current kWh price" }
+      "abonnement": {
+        "name": "Monthly subscription (incl. tax)"
+      },
+      "prix_hc": {
+        "name": "Off-peak kWh price (incl. tax)"
+      },
+      "prix_hp": {
+        "name": "Peak kWh price (incl. tax)"
+      },
+      "prix_base": {
+        "name": "Base kWh price (incl. tax)"
+      },
+      "plages_hc": {
+        "name": "Off-peak hours"
+      },
+      "puissance": {
+        "name": "Subscribed power"
+      },
+      "derniere_modification": {
+        "name": "Offer last changed"
+      },
+      "prix_actuel": {
+        "name": "Current kWh price"
+      },
+      "numero_pdl": {
+        "name": "Delivery point number"
+      },
+      "adresse": {
+        "name": "Address"
+      }
     }
   }
 }
