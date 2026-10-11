@@ -1,0 +1,42 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "La Belle Énergie",
+        "description": "Saisissez les identifiants de votre espace client espace-client.labellenergie.fr.",
+        "data": {
+          "email": "Adresse e-mail",
+          "password": "Mot de passe"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Reconnexion à La Belle Énergie",
+        "description": "Le mot de passe du compte {email} n'est plus valide. Saisissez le nouveau mot de passe.",
+        "data": {
+          "password": "Mot de passe"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "E-mail ou mot de passe incorrect.",
+      "cannot_connect": "Impossible de joindre l'espace client La Belle Énergie.",
+      "unknown": "Erreur inattendue."
+    },
+    "abort": {
+      "already_configured": "Ce compte est déjà configuré.",
+      "reauth_successful": "Mot de passe mis à jour."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "abonnement": { "name": "Abonnement mensuel TTC" },
+      "prix_hc": { "name": "Prix du kWh heures creuses TTC" },
+      "prix_hp": { "name": "Prix du kWh heures pleines TTC" },
+      "prix_base": { "name": "Prix du kWh base TTC" },
+      "plages_hc": { "name": "Plages d'heures creuses" },
+      "puissance": { "name": "Puissance souscrite" },
+      "derniere_modification": { "name": "Dernière modification de l'offre" },
+      "prix_actuel": { "name": "Prix actuel du kWh" }
+    }
+  }
+}

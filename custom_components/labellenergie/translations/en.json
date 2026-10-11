@@ -1,0 +1,42 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "La Belle Énergie",
+        "description": "Enter your espace-client.labellenergie.fr credentials.",
+        "data": {
+          "email": "Email",
+          "password": "Password"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Reconnect to La Belle Énergie",
+        "description": "The password for {email} is no longer valid. Enter the new password.",
+        "data": {
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Incorrect email or password.",
+      "cannot_connect": "Unable to reach the La Belle Énergie customer portal.",
+      "unknown": "Unexpected error."
+    },
+    "abort": {
+      "already_configured": "This account is already configured.",
+      "reauth_successful": "Password updated."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "abonnement": { "name": "Monthly subscription (incl. tax)" },
+      "prix_hc": { "name": "Off-peak kWh price (incl. tax)" },
+      "prix_hp": { "name": "Peak kWh price (incl. tax)" },
+      "prix_base": { "name": "Base kWh price (incl. tax)" },
+      "plages_hc": { "name": "Off-peak hours" },
+      "puissance": { "name": "Subscribed power" },
+      "derniere_modification": { "name": "Offer last changed" },
+      "prix_actuel": { "name": "Current kWh price" }
+    }
+  }
+}
