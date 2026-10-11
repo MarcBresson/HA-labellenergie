@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/logo-entier.svg" alt="La Belle Énergie" width="360"></p>
+
 # La Belle Énergie pour Home Assistant
 
 Intégration Home Assistant (installable via [HACS](https://hacs.xyz)) qui récupère depuis votre espace client [La Belle Énergie](https://espace-client.labellenergie.fr) les tarifs de votre contrat d'électricité : abonnement, prix du kWh, heures creuses, puissance souscrite… et le **prix du kWh en vigueur à cet instant**, utilisable directement dans le tableau de bord **Énergie**.
@@ -14,7 +16,7 @@ labelleenergie - {numéro et rue}
 
 Exemple : `labelleenergie - 4 bd DE CRETEIL`
 
-Chaque appareil expose les entités suivantes. Toutes sont rangées dans la section **Diagnostic** de l'appareil, sauf **Prix actuel du kWh** :
+Chaque appareil expose les entités suivantes. Toutes sont rangées dans la section **Diagnostic** de l'appareil, sauf **Prix actuel du kWh**, **Heure creuse en cours** et **Calendrier des heures creuses** :
 
 | Entité | Unité | Description |
 |---|---|---|
@@ -28,6 +30,8 @@ Chaque appareil expose les entités suivantes. Toutes sont rangées dans la sect
 | Numéro de point de livraison | texte | Numéro du PDL |
 | Adresse | texte | `{complément} {numéro et rue}, {code postal} {ville}` |
 | **Prix actuel du kWh** | €/kWh | Prix en vigueur à l'instant présent (voir ci-dessous) |
+| **Heure creuse en cours** | marche / arrêt | Actif pendant les heures creuses (capteur binaire), pratique pour les automatisations. Indisponible pour une offre Base |
+| **Calendrier des heures creuses** | calendrier | Un événement « Heures creuses » par plage horaire, chaque jour. Actif pendant les heures creuses. Indisponible pour une offre Base |
 
 Une entité dont la valeur n'existe pas dans votre offre (par exemple le prix heures creuses d'une offre Base) apparaît comme « indisponible » : c'est normal.
 
@@ -38,7 +42,7 @@ Une entité dont la valeur n'existe pas dans votre offre (par exemple le prix he
 
 Le capteur expose aussi les attributs `heure_creuse` (`true` / `false`, absent pour une offre Base) et `option` (`base` ou `hp_hc`).
 
-Il n'est **pas** interrogé en boucle : l'intégration connaît les horaires de bascule et ne met à jour le capteur qu'à chaque passage heures creuses ↔ heures pleines (par exemple à 1h04, 7h04, 14h34 et 16h34 pour les plages ci-dessus).
+Il n'est **pas** interrogé en boucle : l'intégration connaît les horaires de bascule et ne met à jour le capteur (comme le capteur binaire et le calendrier) qu'à chaque passage heures creuses ↔ heures pleines (par exemple à 1h04, 7h04, 14h34 et 16h34 pour les plages ci-dessus).
 
 ## Installation
 
