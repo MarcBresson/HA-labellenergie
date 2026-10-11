@@ -10,6 +10,7 @@ from typing import Any
 import aiohttp
 
 from .const import (
+    API_FACTURES,
     API_INFOS_PDL,
     API_LISTE_PDL,
     API_LOGIN,
@@ -17,6 +18,8 @@ from .const import (
     NOM_APPAREIL,
     USER_AGENT,
 )
+
+from .factures import Facture, parse_factures
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -163,10 +166,27 @@ class LabellenergieClient:
             page += 1
         return pdls
 
+    async def _async_get_factures(self, groupe_id: str) -> list[Facture]:
+        """Historique de facturation d'un groupe de facturation.
+
+        Une erreur n'empêche pas la mise à jour des tarifs : seules les entités
+        de facturation deviennent indisponibles (l'authentification échoue, elle,
+        pour tout le monde).
+        """
+        try:
+            data = await self._request(
+                "GET", API_FACTURES.format(groupe_id=groupe_id)
+            )
+        except ApiError as err:
+            _LOGGER.warning("Factures indisponibles : %s", err)
+            return []
+        return parse_factures(data)
+
     async def async_get_pdls(self) -> dict[str, dict[str, Any]]:
         """Informations tarifaires de chaque PDL, indexées par numéro de PDL."""
         resultat: dict[str, dict[str, Any]] = {}
         infos_par_contrat: dict[str, dict[str, Any]] = {}
+        factures_par_groupe: dict[str, list[Facture]] = {}
 
         for pdl_liste in await self._async_liste_pdl():
             numero = pdl_liste["numero"]
@@ -186,6 +206,14 @@ class LabellenergieClient:
             adresse_txt = format_adresse(adresse) if adresse else ""
             rue = (adresse or {}).get("numeroEtRue") or numero
 
+            groupe_id = pdl.get("groupeFacturationId") or pdl_liste.get(
+                "groupeFacturationId"
+            )
+            if groupe_id and groupe_id not in factures_par_groupe:
+                factures_par_groupe[groupe_id] = await self._async_get_factures(
+                    groupe_id
+                )
+
             resultat[numero] = {
                 "numero": numero,
                 "pdc_contrat_id": pdc_contrat_id,
@@ -193,5 +221,6 @@ class LabellenergieClient:
                 "adresse": adresse_txt,
                 "type_compteur": pdl.get("typeCompteur"),
                 "offre": pdl.get("offreCourante") or {},
+                "factures": factures_par_groupe.get(groupe_id, []),
             }
         return resultat

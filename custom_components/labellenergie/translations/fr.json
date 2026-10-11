@@ -58,6 +58,21 @@
       },
       "prix_actuel": {
         "name": "Prix actuel du kWh"
+      },
+      "total_ttc": {
+        "name": "Facture mensuelle TTC"
+      },
+      "cumulative_total_ttc": {
+        "name": "Total payé TTC (cumul)"
+      },
+      "total_annee_passee": {
+        "name": "Total année passée TTC"
+      },
+      "total_annee_en_cours": {
+        "name": "Total année en cours TTC"
+      },
+      "total_annee_glissante": {
+        "name": "Total 12 derniers mois TTC"
       }
     },
     "binary_sensor": {

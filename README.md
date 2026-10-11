@@ -16,7 +16,7 @@ labelleenergie - {numéro et rue}
 
 Exemple : `labelleenergie - 4 bd DE CRETEIL`
 
-Chaque appareil expose les entités suivantes. Toutes sont rangées dans la section **Diagnostic** de l'appareil, sauf **Prix actuel du kWh**, **Heure creuse en cours** et **Calendrier des heures creuses** :
+Chaque appareil expose les entités suivantes. Toutes sont rangées dans la section **Diagnostic** de l'appareil, sauf **Prix actuel du kWh**, **Heure creuse en cours**, **Calendrier des heures creuses** et les entités de facturation :
 
 | Entité | Unité | Description |
 |---|---|---|
@@ -32,6 +32,11 @@ Chaque appareil expose les entités suivantes. Toutes sont rangées dans la sect
 | **Prix actuel du kWh** | €/kWh | Prix en vigueur à l'instant présent (voir ci-dessous) |
 | **Heure creuse en cours** | marche / arrêt | Actif pendant les heures creuses (capteur binaire), pratique pour les automatisations. Indisponible pour une offre Base |
 | **Calendrier des heures creuses** | calendrier | Un événement « Heures creuses » par plage horaire, chaque jour. Actif pendant les heures creuses. Indisponible pour une offre Base |
+| **Facture mensuelle TTC** | € | Montant TTC de la dernière facture (attributs `mois` et `total_ht`) |
+| **Total payé TTC (cumul)** | € | Somme de toutes les factures depuis la première |
+| **Total année passée TTC** | € | Somme des factures de l'année civile précédente |
+| **Total année en cours TTC** | € | Somme des factures de l'année civile en cours |
+| **Total 12 derniers mois TTC** | € | Somme des 12 mois se terminant au dernier mois facturé (attributs `mois_debut` et `mois_fin`) |
 
 Une entité dont la valeur n'existe pas dans votre offre (par exemple le prix heures creuses d'une offre Base) apparaît comme « indisponible » : c'est normal.
 
@@ -87,9 +92,20 @@ Remarques :
 - Le tableau de bord Énergie n'accepte que les entités dont l'unité est la devise de votre installation suivie de `/kWh` (ici `EUR/kWh`). Vérifiez que la devise est bien l'euro dans **Paramètres → Système → Général**.
 - Le prix de l'**abonnement** n'est pas pris en compte par le tableau de bord Énergie. Si vous souhaitez l'inclure, utilisez l'entité *Abonnement mensuel TTC* dans vos propres tableaux de bord ou automatisations.
 
+## Factures et historique
+
+Les montants proviennent de l'historique de facturation de l'espace client (`total_ttc` de chaque mois).
+
+- **Backfill** : à la première création des capteurs *Facture mensuelle TTC* et *Total payé TTC (cumul)*, tout l'historique est importé dans les **statistiques de long terme** de l'entité (un point par mois), pour que les graphiques d'historique et de statistiques remontent jusqu'à votre première facture. Cet import n'est fait **qu'une fois** par entité ; ensuite l'enregistreur de Home Assistant suit l'évolution de l'état. Si vous supprimez les statistiques de l'entité, rechargez l'intégration pour relancer l'import.
+- Les factures ne donnent pas leur date d'émission : chaque mois est daté du **1er du mois à 00h00 (heure de Paris)**.
+- *Facture mensuelle TTC* est un compteur remis à zéro chaque mois (`last_reset`), et *Total payé TTC (cumul)* un total qui ne fait que croître : tous deux utilisent la classe d'état `total`. Les trois totaux annuels n'enregistrent pas de statistiques.
+- Les années civiles sont celles de l'heure de Paris ; le passage au 1er janvier n'est pris en compte qu'à la mise à jour suivante (24 h au plus).
+- La facturation est rattachée à un **groupe de facturation**, pas à un PDL : si plusieurs PDL de votre compte en partagent un, chacun affichera le même montant.
+- L'intégration dépend du composant `recorder` (activé par défaut dans Home Assistant).
+
 ## Fréquence de mise à jour
 
-- Les tarifs (abonnement, prix, plages, puissance) sont relus **une fois par 24 heures**, ainsi qu'au démarrage de Home Assistant.
+- Les tarifs (abonnement, prix, plages, puissance) et les factures sont relus **une fois par 24 heures**, ainsi qu'au démarrage de Home Assistant.
 - Le **prix actuel du kWh** est recalculé localement à chaque bascule heures creuses / heures pleines, sans appel réseau.
 
 ## Confidentialité

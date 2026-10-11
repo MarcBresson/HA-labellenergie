@@ -58,6 +58,21 @@
       },
       "adresse": {
         "name": "Address"
+      },
+      "total_ttc": {
+        "name": "Monthly bill (incl. tax)"
+      },
+      "cumulative_total_ttc": {
+        "name": "Total paid (incl. tax, cumulative)"
+      },
+      "total_annee_passee": {
+        "name": "Last year total (incl. tax)"
+      },
+      "total_annee_en_cours": {
+        "name": "Current year total (incl. tax)"
+      },
+      "total_annee_glissante": {
+        "name": "Last 12 months total (incl. tax)"
       }
     },
     "binary_sensor": {

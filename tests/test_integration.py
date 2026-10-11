@@ -19,6 +19,18 @@ from pytest_homeassistant_custom_component.common import (  # noqa: E402
 
 from custom_components.labellenergie.api import ApiError, AuthError, LabellenergieClient  # noqa: E402
 from custom_components.labellenergie.const import DOMAIN  # noqa: E402
+from custom_components.labellenergie.factures import parse_factures  # noqa: E402
+
+FACTURES = parse_factures(
+    {
+        "2025": {"11": {"total_ttc": 16.0}, "12": {"total_ttc": 17.0}},
+        "2026": {
+            "1": {"total_ttc": 11.0, "total_ht": 9.0},
+            "9": {"total_ttc": 5.0},
+            "10": {"total_ttc": 0.0, "total_ht": 0.0},
+        },
+    }
+)
 
 NUMERO = "22497684412005"
 NOM = "labelleenergie - 4 bd DE CRETEIL"
@@ -39,6 +51,7 @@ PDLS = {
             "plagesHc": ["1h04 - 7h04", "14h34 - 16h34"],
             "lastChange": "2026-06-25",
         },
+        "factures": FACTURES,
     }
 }
 PDL_BASE = {
@@ -60,7 +73,7 @@ PDL_BASE = {
 
 
 @pytest.fixture(autouse=True)
-def _enable(enable_custom_integrations):
+def _enable(recorder_mock, enable_custom_integrations):
     yield
 
 
@@ -123,8 +136,122 @@ async def test_entites_en_diagnostic_sauf_prix_actuel(hass, get_pdls):
     assert categories.pop("prix_actuel") is None
     assert categories.pop("heure_creuse") is None
     assert categories.pop("calendrier_hc") is None
+    for cle in (
+        "total_ttc",
+        "cumulative_total_ttc",
+        "total_annee_passee",
+        "total_annee_en_cours",
+        "total_annee_glissante",
+    ):
+        assert categories.pop(cle) is None
     assert len(categories) == 9  # le capteur binaire et le calendrier n'en font pas partie
     assert set(categories.values()) == {er.EntityCategory.DIAGNOSTIC}
+
+
+async def test_capteurs_de_facturation(hass, freezer, get_pdls):
+    freezer.move_to("2026-10-15T12:00:00+02:00")
+    await _setup(hass, get_pdls, deepcopy(PDLS))
+
+    mensuel = _state(hass, NUMERO, "total_ttc")
+    assert float(mensuel.state) == 0.0
+    assert mensuel.attributes["mois"] == "2026-10"
+    assert mensuel.attributes["total_ht"] == 0.0
+    assert mensuel.attributes["last_reset"].startswith("2026-09-30T22:00:00")
+    assert mensuel.attributes["unit_of_measurement"] == "EUR"
+    assert mensuel.attributes["device_class"] == "monetary"
+
+    assert float(_state(hass, NUMERO, "cumulative_total_ttc").state) == 49.0
+    assert float(_state(hass, NUMERO, "total_annee_passee").state) == 33.0
+    assert float(_state(hass, NUMERO, "total_annee_en_cours").state) == 16.0
+    glissant = _state(hass, NUMERO, "total_annee_glissante")
+    assert float(glissant.state) == 49.0
+    assert glissant.attributes["mois_debut"] == "2025-11"
+    assert glissant.attributes["mois_fin"] == "2026-10"
+
+
+async def test_totaux_annuels_au_changement_d_annee(
+    hass, freezer, get_pdls
+):
+    freezer.move_to("2027-01-10T12:00:00+01:00")
+    await _setup(hass, get_pdls, deepcopy(PDLS))
+    assert float(_state(hass, NUMERO, "total_annee_en_cours").state) == 0.0
+    assert float(_state(hass, NUMERO, "total_annee_passee").state) == 16.0
+    freezer.move_to("2028-06-01T12:00:00+02:00")
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+    # rafraîchissement 24 h plus tard, deux ans après : plus de facture en 2027
+    assert _state(hass, NUMERO, "total_annee_passee").state == "unavailable"
+    assert float(_state(hass, NUMERO, "total_annee_en_cours").state) == 0.0
+
+
+async def test_capteurs_de_facturation_indisponibles_sans_facture(hass, get_pdls):
+    pdls = deepcopy(PDLS)
+    pdls[NUMERO]["factures"] = []
+    await _setup(hass, get_pdls, pdls)
+    for cle in (
+        "total_ttc",
+        "cumulative_total_ttc",
+        "total_annee_passee",
+        "total_annee_en_cours",
+        "total_annee_glissante",
+    ):
+        assert _state(hass, NUMERO, cle).state == "unavailable"
+    # les tarifs restent disponibles
+    assert float(_state(hass, NUMERO, "prix_hp").state) == 0.189
+
+
+async def test_backfill_de_l_historique(hass, get_pdls):
+    from homeassistant.components.recorder import get_instance
+    from homeassistant.components.recorder.statistics import statistics_during_period
+    from pytest_homeassistant_custom_component.components.recorder.common import (
+        async_wait_recording_done,
+    )
+
+    await _setup(hass, get_pdls, deepcopy(PDLS))
+    await async_wait_recording_done(hass)
+
+    for cle, etat, somme in (
+        ("total_ttc", [16.0, 17.0, 11.0, 5.0, 0.0], [16.0, 33.0, 44.0, 49.0, 49.0]),
+        ("cumulative_total_ttc", [16.0, 33.0, 44.0, 49.0, 49.0], [16.0, 33.0, 44.0, 49.0, 49.0]),
+    ):
+        entity_id = er.async_get(hass).async_get_entity_id("sensor", DOMAIN, f"{NUMERO}_{cle}")
+        stats = await get_instance(hass).async_add_executor_job(
+            statistics_during_period,
+            hass,
+            dt_util.utc_from_timestamp(0),
+            None,
+            {entity_id},
+            "hour",
+            None,
+            {"state", "sum"},
+        )
+        lignes = stats[entity_id]
+        assert [round(ligne["state"], 2) for ligne in lignes] == etat, cle
+        assert [round(ligne["sum"], 2) for ligne in lignes] == somme, cle
+        # un point par mois, au 1er du mois à minuit (heure de Paris)
+        debuts = [dt_util.utc_from_timestamp(ligne["start"]).isoformat() for ligne in lignes]
+        assert debuts[0].startswith("2025-10-31T23:00") and debuts[-1].startswith("2026-09-30T22:00")
+
+
+async def test_backfill_une_seule_fois(hass, freezer, get_pdls):
+    from homeassistant.components.recorder.statistics import async_import_statistics
+    from pytest_homeassistant_custom_component.components.recorder.common import (
+        async_wait_recording_done,
+    )
+
+    with patch(
+        "custom_components.labellenergie.statistiques.async_import_statistics",
+        wraps=async_import_statistics,
+    ) as importe:
+        entry = await _setup(hass, get_pdls, deepcopy(PDLS))
+        await async_wait_recording_done(hass)
+        assert importe.call_count == 2  # mensuel + cumul
+
+        # rechargement : les statistiques existent, rien n'est réimporté
+        await hass.config_entries.async_reload(entry.entry_id)
+        await hass.async_block_till_done()
+        await async_wait_recording_done(hass)
+        assert importe.call_count == 2
 
 
 async def test_prix_actuel_bascule_aux_heures_de_changement(hass, freezer, get_pdls):
